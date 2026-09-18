@@ -638,7 +638,7 @@ final class Graph
         array $handledBlade,
         array &$affectedSet,
     ): void {
-        $unknownToGraph = $unparseableMigrations;
+        $watchedPaths = $unparseableMigrations;
 
         foreach ($nonMigrationPaths as $rel) {
             if (isset($preciselyHandledPages[$rel])) {
@@ -655,14 +655,16 @@ final class Graph
                     continue;
                 }
 
-                $unknownToGraph[] = $rel;
+                $watchedPaths[] = $rel;
+            } elseif ($this->isFrameworkBootPath($rel)) {
+                $watchedPaths[] = $rel;
             }
         }
 
         /** @var WatchPatterns $watchPatterns */
         $watchPatterns = Container::getInstance()->get(WatchPatterns::class);
 
-        $dirs = $watchPatterns->matchedDirectories($this->projectRoot, $unknownToGraph);
+        $dirs = $watchPatterns->matchedDirectories($this->projectRoot, $watchedPaths);
         $allTestFiles = array_keys($this->edges);
 
         foreach ($watchPatterns->testsUnderDirectories($dirs, $allTestFiles) as $testFile) {
@@ -1156,6 +1158,11 @@ final class Graph
         ksort($out);
 
         $this->jsFileToComponents = $out;
+    }
+
+    private function isFrameworkBootPath(string $rel): bool
+    {
+        return preg_match('#^(config/.+|bootstrap/[^/]+)\.php$#', $rel) === 1;
     }
 
     private function isMigrationPath(string $rel): bool
