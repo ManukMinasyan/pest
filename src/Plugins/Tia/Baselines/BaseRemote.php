@@ -76,7 +76,7 @@ abstract readonly class BaseRemote // @pest-arch-ignore-line
         $gitConfig = $projectRoot.DIRECTORY_SEPARATOR.'.git'.DIRECTORY_SEPARATOR.'config';
 
         if (! is_file($gitConfig)) {
-            return null;
+            return $this->originUrlFromGit($projectRoot);
         }
 
         $content = @file_get_contents($gitConfig);
@@ -90,6 +90,30 @@ abstract readonly class BaseRemote // @pest-arch-ignore-line
         }
 
         return $match[1];
+    }
+
+    private function originUrlFromGit(string $projectRoot): ?string
+    {
+        if (! file_exists($projectRoot.DIRECTORY_SEPARATOR.'.git')) {
+            return null;
+        }
+
+        $process = new Process(['git', 'config', '--get', 'remote.origin.url'], $projectRoot);
+        $process->setTimeout(5.0);
+
+        try {
+            $process->run();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (! $process->isSuccessful()) {
+            return null;
+        }
+
+        $url = trim($process->getOutput());
+
+        return $url === '' ? null : $url;
     }
 
     /**
