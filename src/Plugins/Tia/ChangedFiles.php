@@ -93,12 +93,12 @@ final readonly class ChangedFiles
     /**
      * @return array<int, string>|null `null` when git is unavailable, or when
      */
-    public function since(?string $sha): ?array
+    public function since(?string $sha, bool $anyCommit = false): ?array
     {
         $files = [];
 
         if ($sha !== null && $sha !== '') {
-            if (! $this->shaIsReachable($sha)) {
+            if (! ($anyCommit ? $this->git->hasRef($sha.'^{commit}') : $this->shaIsReachable($sha))) {
                 return null;
             }
 
@@ -156,6 +156,51 @@ final readonly class ChangedFiles
         }
 
         return $remaining;
+    }
+
+    /**
+     * @param  array<int, string>  $files
+     * @return array<int, string>
+     */
+    public function withoutDefaultBranchChanges(array $files, string $defaultBranch): array
+    {
+        $forkPoint = $this->forkPoint($defaultBranch);
+
+        if ($forkPoint === null) {
+            return $files;
+        }
+
+        $remaining = [];
+
+        foreach ($files as $file) {
+            $currentHash = $this->currentHash($file);
+            $forkPointContent = $this->contentAtSha($forkPoint, $file);
+
+            if ($currentHash === null && $forkPointContent === null) {
+                continue;
+            }
+
+            if ($currentHash === null
+                || $forkPointContent === null
+                || $currentHash !== ContentHash::ofContent($file, $forkPointContent)) {
+                $remaining[] = $file;
+            }
+        }
+
+        return $remaining;
+    }
+
+    private function forkPoint(string $defaultBranch): ?string
+    {
+        foreach (['refs/remotes/origin/'.$defaultBranch, 'refs/heads/'.$defaultBranch] as $ref) {
+            if (! $this->git->hasRef($ref)) {
+                continue;
+            }
+
+            return $this->git->output(['merge-base', 'HEAD', $ref]);
+        }
+
+        return null;
     }
 
     private function contentAtSha(string $sha, string $path): ?string

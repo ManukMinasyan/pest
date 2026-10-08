@@ -896,7 +896,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             $branchSha = $graph->recordedAtSha($this->branch);
 
             if ($branchSha !== null
-                && $changedFiles->since($branchSha) === null) {
+                && $changedFiles->since($branchSha, $this->watchPatterns->trustsDefaultBranch()) === null) {
                 $this->renderBadge('WARN', 'Recorded commit is no longer reachable — graph will be rebuilt.');
                 $graph = null;
                 $this->graphUnreachable = true;
@@ -1088,7 +1088,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         $changedFiles = new ChangedFiles($projectRoot);
 
         $branchSha = $graph->recordedAtSha($this->branch);
-        $changed = $changedFiles->since($branchSha);
+        $changed = $changedFiles->since($branchSha, $this->watchPatterns->trustsDefaultBranch());
 
         if ($changed === null) {
             Panic::with(new TiaBaselineCommitMissing((string) $branchSha));
@@ -1098,6 +1098,10 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             $changed,
             $graph->lastRunTree($this->branch),
         );
+
+        if ($this->watchPatterns->trustsDefaultBranch() && $this->branch !== $this->fallbackBranch) {
+            $changed = $changedFiles->withoutDefaultBranchChanges($changed, $this->fallbackBranch);
+        }
 
         $hasProjectPhpSourceChanges = $this->hasProjectPhpSourceChanges($changed);
         $coverageAvailable = $this->piggybackCoverage || $this->recorder->driverAvailable();
