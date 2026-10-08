@@ -76,7 +76,7 @@ test('a fetched baseline recorded at a commit this clone lacks fails loudly', fu
     $result = $project->pestWithEnvironment($project->path(), $environment, '--tia', '--baselined');
 
     expect($result->exitCode)->toBe(1, $result->describe())
-        ->and($result->output)->toContain('is not in this clone')
+        ->and($result->output)->toContain('cannot be reached from this branch')
         ->and($result->replayed())->toBe(0, $result->describe());
 })->skipOnWindows();
 

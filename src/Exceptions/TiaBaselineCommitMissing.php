@@ -19,7 +19,7 @@ final class TiaBaselineCommitMissing extends RuntimeException implements Excepti
     public function __construct(private readonly string $sha)
     {
         parent::__construct(sprintf(
-            'The Tia baseline was recorded at commit %s, which is not in this clone, so the files changed since then cannot be listed.',
+            'The Tia baseline was recorded at commit %s, which cannot be reached from this branch, so the files changed since then cannot be listed.',
             $sha,
         ));
     }
@@ -28,12 +28,13 @@ final class TiaBaselineCommitMissing extends RuntimeException implements Excepti
     {
         $output->writeln([
             '',
-            sprintf('  <fg=white;options=bold;bg=red> ERROR </> The Tia baseline commit %s is not in this clone.', substr($this->sha, 0, 12)),
+            sprintf('  <fg=white;options=bold;bg=red> ERROR </> The Tia baseline commit %s cannot be reached from this branch.', substr($this->sha, 0, 12)),
             '',
+            '  Either the commit is not in this clone, or this branch does not contain it.',
             '  Without it the files changed since the baseline cannot be listed, and every',
             '  test would be replayed as unchanged.',
             '',
-            '  Fetch it, then run again:',
+            '  Fetch it, or merge the branch it was recorded on, then run again:',
             '',
             '    <fg=yellow>git fetch</>',
             '',
