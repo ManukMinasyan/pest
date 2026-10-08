@@ -65,6 +65,8 @@ final class WatchPatterns
 
     private ?string $defaultBranch = null;
 
+    private bool $trustsDefaultBranch = false;
+
     private ?string $baselineWorkflow = null;
 
     private ?string $baselineJob = null;
@@ -289,6 +291,16 @@ final class WatchPatterns
         return $this->defaultBranch;
     }
 
+    public function markTrustsDefaultBranch(): void
+    {
+        $this->trustsDefaultBranch = true;
+    }
+
+    public function trustsDefaultBranch(): bool
+    {
+        return $this->trustsDefaultBranch;
+    }
+
     public function setBaselineWorkflow(string $workflow): void
     {
         $workflow = trim($workflow);
@@ -327,6 +339,7 @@ final class WatchPatterns
         $this->filtered = false;
         $this->baselined = false;
         $this->defaultBranch = null;
+        $this->trustsDefaultBranch = false;
         $this->baselineWorkflow = null;
         $this->baselineJob = null;
     }
