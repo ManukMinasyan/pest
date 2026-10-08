@@ -170,24 +170,24 @@ final readonly class ChangedFiles
             return $files;
         }
 
-        $remaining = [];
+        return array_values(array_filter(
+            $files,
+            fn (string $file): bool => ! $this->identicalAt($forkPoint, $file),
+        ));
+    }
 
-        foreach ($files as $file) {
-            $currentHash = $this->currentHash($file);
-            $forkPointContent = $this->contentAtSha($forkPoint, $file);
+    private function identicalAt(string $sha, string $file): bool
+    {
+        $currentHash = $this->currentHash($file);
 
-            if ($currentHash === null && $forkPointContent === null) {
-                continue;
-            }
-
-            if ($currentHash === null
-                || $forkPointContent === null
-                || $currentHash !== ContentHash::ofContent($file, $forkPointContent)) {
-                $remaining[] = $file;
-            }
+        if ($currentHash === null) {
+            return ! file_exists($this->projectRoot.DIRECTORY_SEPARATOR.$file)
+                && $this->git->raw(['ls-tree', '--name-only', $sha, '--', $file]) === '';
         }
 
-        return $remaining;
+        $content = $this->contentAtSha($sha, $file);
+
+        return $content !== null && $currentHash === ContentHash::ofContent($file, $content);
     }
 
     private function forkPoint(string $defaultBranch): ?string
