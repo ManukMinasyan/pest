@@ -31,6 +31,16 @@ test('runs the suite without recording when no baseline is published', function 
         ->and($project->graph()['edges'] ?? [])->toBe([], $result->describe());
 })->skipOnWindows();
 
+test('lists every test when it cannot replay', function (): void {
+    $project = Project::make('master', overlay: 'replay-only');
+    $environment = $project->gh('no-runs');
+
+    $result = $project->pestWithEnvironment($project->path(), $environment, '--list-tests');
+
+    expect($result->exitCode)->toBe(0, $result->describe())
+        ->and(substr_count($result->output, '__pest_evaluable_'))->toBe(Project::TOTAL_TESTS, $result->describe());
+})->skipOnWindows();
+
 test('runs the suite instead of stopping when the baseline cannot be fetched', function (string $mode): void {
     $project = Project::make('master', overlay: 'replay-only');
     $environment = $project->gh($mode);
