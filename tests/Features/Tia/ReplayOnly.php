@@ -79,11 +79,23 @@ test('runs the suite without recording when the baseline commit is not in the cl
     });
 
     $environment = $project->gh('no-runs');
+    $project->pestWithEnvironment($project->path(), $environment);
     $result = $project->pestWithEnvironment($project->path(), $environment);
 
     expect($result->exitCode)->toBe(0, $result->describe())
-        ->and($result->output)->toContain('TIA cannot replay here')
+        ->and($result->output)->toContain('TIA cannot replay here: the commit the graph was recorded at is not in this clone.')
         ->and($result->output)->not->toContain('fresh graph')
+        ->and($result->tally())->toContain(Project::TOTAL_TESTS.' passed')
+        ->and($project->graph()['baselines']['master']['sha'] ?? null)->toBe(str_repeat('1', 40));
+})->skipOnWindows();
+
+test('runs the suite in parallel outside a git repository', function (): void {
+    $project = Project::withoutGit('replay-only');
+
+    $result = $project->pest('--parallel', '--processes=2');
+
+    expect($result->exitCode)->toBe(0, $result->describe())
+        ->and($result->output)->toContain('TIA cannot replay here: git is not available.')
         ->and($result->tally())->toContain(Project::TOTAL_TESTS.' passed');
 })->skipOnWindows();
 
