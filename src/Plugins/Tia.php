@@ -925,9 +925,11 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         }
 
         if ($this->replaysOnly) {
-            $reason = $this->driftLabel !== null
-                ? sprintf('%s changed since the graph was recorded', $this->driftLabel)
-                : $this->freshGraphReason ?? 'no dependency graph is available';
+            $reason = match (true) {
+                $this->driftLabel !== null => sprintf('%s changed since the graph was recorded', $this->driftLabel),
+                $this->graphUnreachable => 'the commit the graph was recorded at is not in this clone',
+                default => $this->freshGraphReason ?? 'no dependency graph is available',
+            };
 
             return $this->runWithoutTia($arguments, $reason);
         }
@@ -945,6 +947,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         $this->renderChild('Running the tests without it. Pass --tia to record a dependency graph, or --no-tia to skip this check.');
 
         $this->replaysOnly = false;
+        $this->graphUnreachable = false;
         $this->filteredMode = false;
         $this->forceRefetch = false;
         $this->requestWorkerResults();
@@ -981,6 +984,10 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
      */
     private function handleWorker(array $arguments, string $projectRoot, bool $recordingGlobal, bool $replayingGlobal): array
     {
+        if (! $recordingGlobal && ! $replayingGlobal) {
+            return $arguments;
+        }
+
         $this->resolveBranch($projectRoot);
 
         if ($replayingGlobal) {
@@ -990,10 +997,6 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
                 return $this->activateWorkerRecorderForReplay($arguments);
             }
 
-            return $arguments;
-        }
-
-        if (! $recordingGlobal) {
             return $arguments;
         }
 
