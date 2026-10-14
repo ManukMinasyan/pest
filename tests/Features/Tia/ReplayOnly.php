@@ -64,7 +64,7 @@ test('runs the suite without recording when the lock file no longer matches the 
     $result = $project->pestWithEnvironment($project->path(), $environment);
 
     expect($result->exitCode)->toBe(0, $result->describe())
-        ->and($result->output)->toContain('TIA cannot replay here')
+        ->and($result->output)->toContain('TIA cannot replay here: composer.lock changed since the graph was recorded.')
         ->and($result->output)->not->toContain('fresh graph')
         ->and($result->tally())->toContain(Project::TOTAL_TESTS.' passed');
 })->skipOnWindows();
