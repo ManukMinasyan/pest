@@ -43,6 +43,11 @@ final readonly class BaselineSync
         private WatchPatterns $watchPatterns,
     ) {}
 
+    private function fail(BaselineFetchFailed $exception): never
+    {
+        throw $exception;
+    }
+
     private function renderBadge(string $type, string $content): void
     {
         View::render('components.badge', ['type' => $type, 'content' => $content]);
@@ -53,7 +58,7 @@ final readonly class BaselineSync
         $this->output->writeln(sprintf('  <fg=gray>─ %s</>', $text));
     }
 
-    public function fetchIfAvailable(string $projectRoot, bool $force = false, bool $hasAnchor = false): bool
+    public function fetchIfAvailable(string $projectRoot, bool $force = false, bool $hasAnchor = false, bool $softly = false): bool
     {
         $detected = $this->detectRemote($projectRoot);
 
@@ -72,14 +77,24 @@ final readonly class BaselineSync
             return false;
         }
 
-        $result = $this->download($remote, $repo, $projectRoot, $hasAnchor);
+        try {
+            $result = $this->download($remote, $repo, $projectRoot, $hasAnchor);
+        } catch (BaselineFetchFailed $exception) {
+            if (! $softly) {
+                Panic::with($exception);
+            }
+
+            $this->renderBadge('WARN', $exception->getMessage());
+
+            return false;
+        }
         $payload = $result['payload'];
         $failureKind = $result['failureKind'];
 
         if ($payload === null) {
             if ($failureKind === 'no-runs' || $failureKind === null) {
                 $this->startCooldown();
-                $this->emitPublishInstructions();
+                $this->emitPublishInstructions($softly);
             }
 
             return false;
@@ -159,8 +174,14 @@ final readonly class BaselineSync
         return $seconds.'s';
     }
 
-    private function emitPublishInstructions(): void
+    private function emitPublishInstructions(bool $softly): void
     {
+        if ($softly) {
+            $this->renderBadge('WARN', 'No baseline published yet.');
+
+            return;
+        }
+
         if (Ci::isRunning()) {
             $this->renderBadge('INFO', 'No baseline yet — this run will produce one.');
 
@@ -235,7 +256,7 @@ final readonly class BaselineSync
             return;
         }
 
-        Panic::with(new BaselineFetchFailed(
+        $this->fail(new BaselineFetchFailed(
             sprintf('%s — %s', $contextPrefix, $diagnosis['message']),
             sprintf('Verify your CI baseline configuration and `%s` token scope.', $remote->cliName()),
             $hasAnchor,
@@ -245,7 +266,7 @@ final readonly class BaselineSync
     private function validateCliDependencies(BaseRemote $remote, bool $hasAnchor): void
     {
         if (! $remote->cliExists()) {
-            Panic::with(new BaselineFetchFailed(
+            $this->fail(new BaselineFetchFailed(
                 sprintf('%s CLI (%s) not found — cannot fetch baseline.', $remote->providerLabel(), $remote->cliName()),
                 sprintf('Install it from %s.', $remote->installUrl()),
                 $hasAnchor,
@@ -253,7 +274,7 @@ final readonly class BaselineSync
         }
 
         if (! $remote->cliAuthenticated()) {
-            Panic::with(new BaselineFetchFailed(
+            $this->fail(new BaselineFetchFailed(
                 sprintf('%s CLI (%s) is not authenticated — cannot fetch baseline.', $remote->providerLabel(), $remote->cliName()),
                 sprintf('Run `%s` and retry.', $remote->loginCommand()),
                 $hasAnchor,
@@ -323,7 +344,7 @@ final readonly class BaselineSync
         if ($payload === null) {
             $this->cleanup($runCacheDir);
 
-            Panic::with(new BaselineFetchFailed(
+            $this->fail(new BaselineFetchFailed(
                 'Baseline downloaded but the artifact is missing expected files (graph.json).',
                 'Your CI publish step is broken — check the job that uploads the TIA baseline artifact.',
                 $hasAnchor,

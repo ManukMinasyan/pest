@@ -48,6 +48,8 @@ final class WatchPatterns
 
     private bool $trustsDefaultBranch = false;
 
+    private bool $replayOnly = false;
+
     private ?string $baselineWorkflow = null;
 
     private ?string $baselineJob = null;
@@ -205,6 +207,16 @@ final class WatchPatterns
         return $this->trustsDefaultBranch;
     }
 
+    public function markReplayOnly(): void
+    {
+        $this->replayOnly = true;
+    }
+
+    public function isReplayOnly(): bool
+    {
+        return $this->replayOnly;
+    }
+
     public function setBaselineWorkflow(string $workflow): void
     {
         $workflow = trim($workflow);
@@ -239,6 +251,7 @@ final class WatchPatterns
         $this->baselined = false;
         $this->defaultBranch = null;
         $this->trustsDefaultBranch = false;
+        $this->replayOnly = false;
         $this->baselineWorkflow = null;
         $this->baselineJob = null;
     }

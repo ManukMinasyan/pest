@@ -133,6 +133,18 @@ final class Configuration
     }
 
     /**
+     * @return $this
+     */
+    public function replayOnly(): self
+    {
+        /** @var WatchPatterns $watchPatterns */
+        $watchPatterns = Container::getInstance()->get(WatchPatterns::class);
+        $watchPatterns->markReplayOnly();
+
+        return $this;
+    }
+
+    /**
      * @param  array<string, string>  $patterns  glob → project-relative test dir
      * @return $this
      */

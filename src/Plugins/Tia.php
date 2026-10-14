@@ -204,6 +204,8 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
 
     private bool $fullSuiteFallbackRan = false;
 
+    private bool $replaysOnly = false;
+
     /** @var array<int, string> */
     private array $originalArguments = [];
 
@@ -488,8 +490,14 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             || $this->hasArgument('--ci', $this->originalArguments);
         $alwaysEnabled = $watchPatterns->isEnabled()
             && (! $watchPatterns->isLocally() || ! $runningOnCi);
+        $this->replaysOnly = ! $cliEnabled && $alwaysEnabled && $watchPatterns->isReplayOnly();
+
         if (! $isWorker && ! $disabled && ($cliEnabled || $alwaysEnabled)) {
-            $this->guardUnsupportedOptions($arguments);
+            if ($this->replaysOnly && $this->usesUnsupportedOption($arguments)) {
+                $disabled = true;
+            } else {
+                $this->guardUnsupportedOptions($arguments);
+            }
         }
 
         $hasExplicitPath = $this->hasExplicitPathArgument($arguments);
@@ -856,12 +864,20 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         $subdirectoryPrefix = $this->gitSubdirectoryPrefix($projectRoot);
 
         if ($subdirectoryPrefix !== null) {
+            if ($this->replaysOnly) {
+                return $this->runWithoutTia($arguments, 'the project is not at the repository root');
+            }
+
             Panic::with(new TiaRequiresRepositoryRoot($subdirectoryPrefix));
         }
 
         try {
             $this->resolveBranch($projectRoot);
         } catch (MissingDependency $missingGit) {
+            if ($this->replaysOnly) {
+                return $this->runWithoutTia($arguments, 'git is not available');
+            }
+
             $repository = new ChangedFiles($projectRoot);
 
             if ($repository->isRepository() && ! $repository->hasCommits()) {
@@ -872,6 +888,10 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         }
 
         if (! $this->fallbackBranchResolved) {
+            if ($this->replaysOnly) {
+                return $this->runWithoutTia($arguments, 'the default branch is unknown');
+            }
+
             Panic::with(new ChangedFiles($projectRoot)->hasRemote()
                 ? new TiaRequiresDefaultBranch
                 : new TiaRequiresRemote);
@@ -897,7 +917,9 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
 
             if ($branchSha !== null
                 && $changedFiles->since($branchSha, $this->watchPatterns->trustsDefaultBranch()) === null) {
-                $this->renderBadge('WARN', 'Recorded commit is no longer reachable — graph will be rebuilt.');
+                $this->renderBadge('WARN', $this->replaysOnly
+                    ? 'Recorded commit is no longer reachable.'
+                    : 'Recorded commit is no longer reachable — graph will be rebuilt.');
                 $graph = null;
                 $this->graphUnreachable = true;
             }
@@ -907,7 +929,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             && ! $forceRebuild
             && ! $this->baselineFetchAttemptedForDrift
             && $this->watchPatterns->isBaselined()
-            && $this->baselineSync->fetchIfAvailable($projectRoot, $this->forceRefetch)) {
+            && $this->baselineSync->fetchIfAvailable($projectRoot, $this->forceRefetch, softly: $this->replaysOnly)) {
             $this->baselineFetchAttemptedForDrift = true;
             $graph = $this->loadGraph($projectRoot);
             if ($graph instanceof Graph) {
@@ -939,7 +961,28 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             return $this->enterReplayMode($graph, $projectRoot, $arguments);
         }
 
+        if ($this->replaysOnly) {
+            return $this->runWithoutTia($arguments, $this->driftLabel ?? $this->freshGraphReason ?? 'no dependency graph is available');
+        }
+
         return $this->enterRecordMode($arguments);
+    }
+
+    /**
+     * @param  array<int, string>  $arguments
+     * @return array<int, string>
+     */
+    private function runWithoutTia(array $arguments, string $reason): array
+    {
+        $this->renderBadge('INFO', sprintf('TIA cannot replay here: %s.', $reason));
+        $this->renderChild('Running the tests without it. Pass --tia to record a dependency graph, or --no-tia to skip this check.');
+
+        $this->replaysOnly = false;
+        $this->filteredMode = false;
+        $this->forceRefetch = false;
+        $this->requestWorkerResults();
+
+        return $arguments;
     }
 
     private function purgeState(): void
@@ -1091,6 +1134,10 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         $changed = $changedFiles->since($branchSha, $this->watchPatterns->trustsDefaultBranch());
 
         if ($changed === null) {
+            if ($this->replaysOnly) {
+                return $this->runWithoutTia($arguments, sprintf('the baseline commit %s is not in this clone', substr((string) $branchSha, 0, 12)));
+            }
+
             Panic::with(new TiaBaselineCommitMissing((string) $branchSha));
         }
 
@@ -1958,6 +2005,20 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
     /**
      * @param  array<int, string>  $arguments
      */
+    private function usesUnsupportedOption(array $arguments): bool
+    {
+        foreach (self::UNSUPPORTED_OPTIONS as $option) {
+            if ($this->hasArgument($option, $arguments) || $this->hasArgument($option, $this->originalArguments)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array<int, string>  $arguments
+     */
     private function guardUnsupportedOptions(array $arguments): void
     {
         foreach (self::UNSUPPORTED_OPTIONS as $option) {
@@ -2193,7 +2254,7 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
             return null;
         }
 
-        if (! $this->baselineSync->fetchIfAvailable($projectRoot, $this->forceRefetch, hasAnchor: true)) {
+        if (! $this->baselineSync->fetchIfAvailable($projectRoot, $this->forceRefetch, hasAnchor: true, softly: $this->replaysOnly)) {
             return null;
         }
 
