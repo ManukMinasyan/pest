@@ -925,7 +925,11 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
         }
 
         if ($this->replaysOnly) {
-            return $this->runWithoutTia($arguments, $this->driftLabel ?? $this->freshGraphReason ?? 'no dependency graph is available');
+            $reason = $this->driftLabel !== null
+                ? sprintf('%s changed since the graph was recorded', $this->driftLabel)
+                : $this->freshGraphReason ?? 'no dependency graph is available';
+
+            return $this->runWithoutTia($arguments, $reason);
         }
 
         return $this->enterRecordMode($arguments);
