@@ -318,7 +318,7 @@ describe('Laravel boot files', function (): void {
     beforeEach(function (): void {
         $this->projectRoot = sys_get_temp_dir().'/pest-tia-boot-'.bin2hex(random_bytes(4));
 
-        foreach (['config/app.php', 'config/services/mail.php', 'bootstrap/providers.php', 'bootstrap/cache/config.php', 'routes/web.php', 'database/seeders/DatabaseSeeder.php', 'database/seeders/Testing/DemoSeeder.php', 'app/Other.php'] as $file) {
+        foreach (['config/app.php', 'config/services/mail.php', 'bootstrap/providers.php', 'bootstrap/cache/config.php', 'routes/web.php', 'database/seeders/DatabaseSeeder.php', 'database/seeders/Concerns/LoadsInserts.php', 'database/seeders/Testing/DemoSeeder.php', 'app/Other.php'] as $file) {
             @mkdir(dirname($this->projectRoot.'/'.$file), 0755, true);
             file_put_contents($this->projectRoot.'/'.$file, "<?php\n\nreturn [];\n");
         }
@@ -328,7 +328,7 @@ describe('Laravel boot files', function (): void {
 
         $this->graph = new Graph($this->projectRoot);
 
-        foreach (['config/app.php', 'config/services/mail.php', 'bootstrap/providers.php', 'bootstrap/cache/config.php', 'routes/web.php', 'database/seeders/DatabaseSeeder.php', 'database/seeders/Testing/DemoSeeder.php'] as $file) {
+        foreach (['config/app.php', 'config/services/mail.php', 'bootstrap/providers.php', 'bootstrap/cache/config.php', 'routes/web.php', 'database/seeders/DatabaseSeeder.php', 'database/seeders/Concerns/LoadsInserts.php', 'database/seeders/Testing/DemoSeeder.php'] as $file) {
             $this->graph->link('tests/Feature/FirstInWorkerTest.php', $file);
         }
 
@@ -366,8 +366,15 @@ describe('Laravel boot files', function (): void {
             ->toEqualCanonicalizing(['tests/Feature/FirstInWorkerTest.php', 'tests/Feature/OtherTest.php']);
     })->with(['routes/web.php', 'database/seeders/DatabaseSeeder.php']);
 
-    it('keeps the recorded edges of a seeder in a subdirectory', function (): void {
+    it('applies the watch patterns to a seeder in a subdirectory', function (): void {
         $this->watchPatterns->add(['database/seeders/**/*.php' => 'tests']);
+
+        expect($this->graph->affected(['database/seeders/Concerns/LoadsInserts.php']))
+            ->toEqualCanonicalizing(['tests/Feature/FirstInWorkerTest.php', 'tests/Feature/OtherTest.php']);
+    });
+
+    it('keeps the recorded edges of a seeder that no pattern watches', function (): void {
+        $this->watchPatterns->add(['database/seeders/**/*.php !database/seeders/Testing/**' => 'tests']);
 
         expect($this->graph->affected(['database/seeders/Testing/DemoSeeder.php']))->toBe(['tests/Feature/FirstInWorkerTest.php']);
     });

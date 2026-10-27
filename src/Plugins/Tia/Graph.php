@@ -1168,7 +1168,7 @@ final class Graph
 
     private function isFrameworkBootPath(string $rel): bool
     {
-        return preg_match('#^(config/.+|bootstrap/[^/]+|routes/.+|database/seeders/[^/]+)\.php$#', $rel) === 1;
+        return preg_match('#^(config/.+|bootstrap/[^/]+|routes/.+|database/seeders/.+)\.php$#', $rel) === 1;
     }
 
     private function isMigrationPath(string $rel): bool
