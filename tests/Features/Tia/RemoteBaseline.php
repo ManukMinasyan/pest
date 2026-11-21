@@ -155,3 +155,20 @@ test('no published baseline yet starts a cooldown, and a corrupt cooldown does n
         ->and($third->output)->toContain('No baseline published yet')
         ->and($third->tally())->toContain(Project::TOTAL_TESTS.' passed');
 })->skipOnWindows();
+
+test('a baselined --list-tests lists only the tests the change reaches', function (): void {
+    [$project, $environment] = tiaPublishedBaseline();
+
+    $project->write('app/Greeter.php', str_replace(
+        '$name);',
+        'trim($name));',
+        (string) file_get_contents($project->path('app/Greeter.php')),
+    ));
+
+    $result = $project->pestWithEnvironment($project->path(), $environment, '--tia', '--baselined', '--filtered', '--list-tests');
+
+    expect($result->exitCode)->toBe(0, $result->describe())
+        ->and($result->output)->toContain('greets_a_person')
+        ->and($result->output)->not->toContain('adds_two_numbers')
+        ->and(substr_count($result->output, ' - '))->toBe(2, $result->describe());
+})->skipOnWindows();

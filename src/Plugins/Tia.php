@@ -514,7 +514,8 @@ final class Tia implements AddsOutput, HandlesArguments, HandlesOriginalArgument
 
         $hasExplicitPath = $this->hasExplicitPathArgument($arguments);
         $partial = ! $isWorker && ($hasExplicitPath || $this->hasPartialSelection($arguments));
-        $disabled = $disabled || $partial || $this->hasListingOption($arguments);
+        $listsSuite = $this->hasListingOption($arguments) && ! $watchPatterns->isBaselined();
+        $disabled = $disabled || $partial || $listsSuite;
 
         $mutating = self::isMutationRun($this->originalArguments);
 
